@@ -1,0 +1,126 @@
+- hosts: localhost
+  connection: local
+  vars:
+    tmp_path: /tmp
+    # get project path from command line: ansible-playbook runtests.yml --extra-vars "path=/path/to/project"
+    project_path: "{{ path }}"
+    dev_ini_filename_local: "{{ project_path }}/application/configs/dev.ini"
+    dev_ini_filename_repo: "{{ project_path }}/application/configs/_dev.ini"
+
+    # Grep variables from .ini file, drop variable name and single/double quotes from value
+    # and store result in ansible variable.
+    # Lookups are run on local machine, so it's ok to grep vars from files that are not under git.
+    # These vars then can be used on a remote host to run tests.
+    # Similar result can be achieved in shell command:
+    #   $ grep '^log.email\s*=' dev.ini | perl -pe "s/^log.email\s*=\s*['\"]?(.*?)['\"]?$/\1/"
+    #
+    # Too bad ansible can't read .ini files :(.
+
+    # email to send report to:
+    email: "{{ lookup('pipe', 'cat \"' + dev_ini_filename_local + '\" | grep \"^log.email\\s*=\" | sed -r \"s/^[a-zA-Z0-9.-]*\\s*=\\s*[\\'\\\\\"]?//\" | sed -r \"s/[\\'\\\\\"]?$//\" ') }}"
+
+    # Developer's db settings, temporary db will be created here.
+    # Connection to this db is actually made using user/password stored in .my.cnf file
+    # of shell user who runs ansible. This user should have all privileges on given host.
+    # Most developers probably has [localhost/root/password] here, so we're good.
+    # If you are not one of them, you may want to create new user to run ansible playbooks
+    # and setup db connection in .my.cnf.
+    test_db_host: "{{ lookup('pipe', 'cat \"' + dev_ini_filename_local + '\" | grep \"^resources.multidb.maintest.host\\s*=\" | sed -r \"s/^[a-zA-Z0-9.-]*\\s*=\\s*[\\'\\\\\"]?//\" | sed -r \"s/[\\'\\\\\"]?$//\" ') }}"
+    test_db_user: "{{ lookup('pipe', 'cat \"' + dev_ini_filename_local + '\" | grep \"^resources.multidb.maintest.username\\s*=\" | sed -r \"s/^[a-zA-Z0-9.-]*\\s*=\\s*[\\'\\\\\"]?//\" | sed -r \"s/[\\'\\\\\"]?$//\" ') }}"
+    test_db_password: "{{ lookup('pipe', 'cat \"' + dev_ini_filename_local + '\" | grep \"^resources.multidb.maintest.password\\s*=\" | sed -r \"s/^[a-zA-Z0-9.-]*\\s*=\\s*[\\'\\\\\"]?//\" | sed -r \"s/[\\'\\\\\"]?$//\" ') }}"
+
+    # Etalon test database.
+    # We will dump it and run tests on our temporary db.
+    etalon_db_host: "{{ lookup('pipe', 'cat \"' + dev_ini_filename_repo + '\" | grep \"^resources.multidb.maintest.host\\s*=\" | sed -r \"s/^[a-zA-Z0-9.-]*\\s*=\\s*[\\'\\\\\"]?//\" | sed -r \"s/[\\'\\\\\"]?$//\" ') }}"
+    etalon_db_user: "{{ lookup('pipe', 'cat \"' + dev_ini_filename_repo + '\" | grep \"^resources.multidb.maintest.username\\s*=\" | sed -r \"s/^[a-zA-Z0-9.-]*\\s*=\\s*[\\'\\\\\"]?//\" | sed -r \"s/[\\'\\\\\"]?$//\" ') }}"
+    etalon_db_password: "{{ lookup('pipe', 'cat \"' + dev_ini_filename_repo + '\" | grep \"^resources.multidb.maintest.password\\s*=\" | sed -r \"s/^[a-zA-Z0-9.-]*\\s*=\\s*[\\'\\\\\"]?//\" | sed -r \"s/[\\'\\\\\"]?$//\" ') }}"
+    etalon_db_name: "{{ lookup('pipe', 'cat \"' + dev_ini_filename_repo + '\" | grep \"^resources.multidb.maintest.dbname\\s*=\" | sed -r \"s/^[a-zA-Z0-9.-]*\\s*=\\s*[\\'\\\\\"]?//\" | sed -r \"s/[\\'\\\\\"]?$//\" ') }}"
+    # Store etalon dump here, we will cache it for a day.
+    etalon_dayly_dump_file: "{{ tmp_path }}/runtests-{{ etalon_db_name }}-dump-{{ ansible_date_time.date }}.sql"
+
+
+  tasks:
+
+    - name: get current commit hash
+      shell: chdir={{ project_path }}    git show --abbrev-commit --format=%h| head -n1
+      register: commit_hash
+    - name: create temporary directory
+      command: mktemp -d {{ tmp_path }}/runtests-{{ commit_hash.stdout }}-XXX
+      register: test_dir
+
+    # cloning repository
+    - name: clone current commit into test dir
+      command: git clone {{ project_path }} {{ test_dir.stdout }}
+    - name: update submodules
+      command: chdir={{ test_dir.stdout }}    git submodule update --init
+
+    # get git branch name
+    - name: get git branch name
+      shell: chdir={{ test_dir.stdout }}    git describe --all --exact-match 2>/dev/null | sed -nr 's/^(remotes\/|heads\/)?(.*)/\2/p'
+      register: branch_name
+
+    - name: copy dev.ini config
+      copy: src={{ dev_ini_filename_local }} dest={{ test_dir.stdout }}/application/configs/dev.ini
+    # ini_file module doesn't support .ini files without sections, so replace line with regexp
+    - name: update db connection for cloned repository
+      lineinfile: dest={{ test_dir.stdout }}/application/configs/dev.ini
+                line="resources.multidb.maintest.dbname = {{ test_dir.stdout | basename }}"
+                regexp="^resources.multidb.maintest.dbname"
+                state=present
+
+
+    # copy database
+    - name: check if we have today's etalon dump
+      shell: "[ -f {{ etalon_dayly_dump_file }} ] && echo 'OK' || echo ''"
+      register: has_etalon_dump
+    - name: dump etalon db if there is no today's dump
+      when: has_etalon_dump.stdout == ''
+      mysql_db: login_host={{ etalon_db_host }}
+                login_user={{ etalon_db_user }}
+                login_password={{ etalon_db_password }}
+                name={{ etalon_db_name }}
+                encoding=utf-8
+                state=dump
+                target={{ etalon_dayly_dump_file }}
+    - name: create temporary db for tests
+      mysql_db: login_host={{ test_db_host }}
+                name={{ test_dir.stdout | basename }}
+                encoding=utf8
+                state=present
+    - name: import db dump
+      mysql_db: login_host={{ test_db_host }}
+                name={{ test_dir.stdout | basename }}
+                encoding=utf-8
+                state=import
+                target={{ etalon_dayly_dump_file }}
+    - name: grant privileges to test db
+      mysql_user: login_host={{ test_db_host }}
+                  host={{ test_db_host }}
+                  name={{ test_db_user }}
+                  priv={{ test_dir.stdout | basename }}.*:ALL
+                  state=present
+
+    - name: run migrations
+      shell: chdir={{ test_dir.stdout }}/cli/migrationtool/    php migrate.php latest --env=unittest >> {{ test_dir.stdout }}/data/migrations.txt
+      register: result_migrations
+
+    # run tests
+    - name: run phpunit
+      shell: chdir={{ test_dir.stdout }}/tests/unit    php phpunit.php -c phpunit-jenkins.xml >> {{ test_dir.stdout }}/data/phpunit.txt
+      register: result_phpunit
+      ignore_errors: true
+
+    # send results
+    - name: mail results
+      mail: to={{ email }}
+            from={{ email }}
+            subject="[Ansible] Test results - {{ branch_name.stdout }}"
+            charset=utf8
+            attach="{{ test_dir.stdout }}/data/migrations.txt {{ test_dir.stdout }}/data/phpunit.txt"
+
+    # cleanup
+    - name: cleanup temp dir
+      command: rm -rf {{ test_dir.stdout }}
+    # mysql_db module removes all user privileges on db removal, so drop temp db that way
+    - name: remove temp db
+      shell: echo 'drop database `{{ test_dir.stdout | basename }}`;' | mysql -h{{ test_db_host }} -u{{ test_db_user }} -p{{ test_db_password}}

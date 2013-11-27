@@ -1,0 +1,10 @@
+#!/bin/bash
+#
+# Git post-commit hook to run tests.
+#
+# Put this file to .git/hooks/post-commit in your repository
+# and change next path to path to your clone of ansible-playbooks repo.
+
+ANSIBLE_PLAYBOOKS=~/projects/ansible-playbooks
+
+ansible-playbook $ANSIBLE_PLAYBOOKS/runtests.yml --extra-vars "path=`pwd`" >/dev/null 2>&1 &
