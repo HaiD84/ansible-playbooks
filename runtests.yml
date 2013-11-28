@@ -114,7 +114,7 @@
     - name: mail results
       mail: to={{ email }}
             from={{ email }}
-            subject="[Ansible] Test results - {{ branch_name.stdout }}"
+            subject="[Ansible] Test results - {{ commit_hash.stdout }} {{ branch_name.stdout }}"
             charset=utf8
             attach="{{ test_dir.stdout }}/data/migrations.txt {{ test_dir.stdout }}/data/phpunit.txt"
 
