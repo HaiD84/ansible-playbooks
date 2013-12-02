@@ -113,11 +113,19 @@
       register: result_phpunit
       ignore_errors: true
 
+    # grep silently return exit code 0 if found something.
+    # get "Failed" string if any grep in () return 0.
+    - name: get overall test results
+      shell: ( grep -sq FAILURE {{ test_dir.stdout }}/data/phpunit.txt \
+               || grep -sq SQLSTATE {{ test_dir.stdout }}/data/migrations.txt \
+             ) && echo Failed || echo OK
+      register: result_overall
+
     # send results
     - name: mail results
       mail: to={{ email }}
             from={{ email }}
-            subject="[Ansible] Test results - {{ commit_hash.stdout }} {{ branch_name.stdout }}"
+            subject="[Ansible] Tests {{ result_overall.stdout }} - {{ commit_hash.stdout }} {{ branch_name.stdout }}"
             charset=utf8
             attach="{{ test_dir.stdout }}/data/migrations.txt {{ test_dir.stdout }}/data/phpunit.txt"
 
