@@ -73,6 +73,9 @@
     - name: check if we have today's etalon dump
       shell: "[ -f {{ etalon_dayly_dump_file }} ] && echo 'OK' || echo ''"
       register: has_etalon_dump
+    - name: drop old database dumps
+      when: has_etalon_dump.stdout == ''
+      shell: rm -f {{ tmp_path }}/runtests-{{ etalon_db_name }}-dump-*.sql
     - name: dump etalon db if there is no today's dump
       when: has_etalon_dump.stdout == ''
       mysql_db: login_host={{ etalon_db_host }}
