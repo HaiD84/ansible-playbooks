@@ -109,14 +109,15 @@
 
     # run tests
     - name: run phpunit
-      shell: chdir={{ test_dir.stdout }}/tests/unit    php phpunit.php -c phpunit-jenkins.xml >> {{ test_dir.stdout }}/data/phpunit.txt
+      shell: chdir={{ test_dir.stdout }}/tests/unit    php phpunit.php -c phpunit-jenkins.xml >> {{ test_dir.stdout }}/data/phpunit.txt 2>&1
       register: result_phpunit
       ignore_errors: true
 
     # grep silently return exit code 0 if found something.
     # get "Failed" string if any grep in () return 0.
     - name: get overall test results
-      shell: ( grep -sq FAILURE {{ test_dir.stdout }}/data/phpunit.txt \
+      shell: ( ! grep -sq '^Tests:' {{ test_dir.stdout }}/data/phpunit.txt \
+               || grep -sq FAILURE {{ test_dir.stdout }}/data/phpunit.txt \
                || grep -sq SQLSTATE {{ test_dir.stdout }}/data/migrations.txt \
              ) && echo Failed || echo OK
       register: result_overall
