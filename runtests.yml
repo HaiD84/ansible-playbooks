@@ -1,9 +1,33 @@
+# Run playbook like this:
+#   ansible-playbook runtests.yml --extra-vars "path=/path/to/project[ repo=<repository url>][ branch=<name>]"
+#
+# Variables: 
+# - path:   required. Path to local configured project checkout.
+#           Will be used to grep some variables from configs
+#           and clone current branch to test if it is not specified.
+# - repo:   optional. Repository URL to clone from.
+#           By default will clone from local bob path.
+#           Can be something like git@github.com:<user>/<repo>
+#           or anything else git can clone from.
+# - branch: optional. Branch name to test.
+#           By default will test current checked out branch.
+
 - hosts: localhost
   connection: local
   vars:
     tmp_path: /tmp
+
     # get project path from command line: ansible-playbook runtests.yml --extra-vars "path=/path/to/project"
     project_path: "{{ path }}"
+    # Repository URL to clone from.
+    # By default clone from local path (and current branch).
+    # Can be specified in command line "repo" variable,
+    # this variable will be rewritten automatically in that case.
+    repo: "{{ path }}"
+    # Default branch name to test.
+    # Can be specified by "branch" command line variable.
+    branch: ""
+
     dev_ini_filename_local: "{{ project_path }}/application/configs/dev.ini"
     dev_ini_filename_repo: "{{ project_path }}/application/configs/_dev.ini"
 
@@ -48,11 +72,16 @@
       command: mktemp -d {{ tmp_path }}/runtests-{{ commit_hash.stdout }}-XXX
       register: test_dir
 
+    - name: set branch key for git clone if branch name is defined
+      set_fact: branch_key=" -b {{ branch }}"
+      when: branch != ''
+    - name: set empty branch key otherwise
+      set_fact: branch_key=""
+      when: branch == ''
+
     # cloning repository
     - name: clone current commit into test dir
-      command: git clone {{ project_path }} {{ test_dir.stdout }}
-    - name: update submodules
-      command: chdir={{ test_dir.stdout }}    git submodule update --init
+      command: git clone --recursive {{ branch_key }} {{ repo }} {{ test_dir.stdout }}
 
     # get git branch name
     - name: get git branch name
