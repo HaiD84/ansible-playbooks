@@ -1,16 +1,17 @@
 # Run playbook like this:
-#   ansible-playbook runtests.yml --extra-vars "path=/path/to/project[ repo=<repository url>][ branch=<name>]"
+#   ansible-playbook runtests.yml --extra-vars "path=/path/to/project[ repo=<repository url>][ branch=<name>][ coverage=<path>]"
 #
-# Variables: 
-# - path:   required. Path to local configured project checkout.
-#           Will be used to grep some variables from configs
-#           and clone current branch to test if it is not specified.
-# - repo:   optional. Repository URL to clone from.
-#           By default will clone from local bob path.
-#           Can be something like git@github.com:<user>/<repo>
-#           or anything else git can clone from.
-# - branch: optional. Branch name to test.
-#           By default will test current checked out branch.
+# Variables:
+# - path:     required. Path to local configured project checkout.
+#             Will be used to grep some variables from configs
+#             and clone current branch to test if it is not specified.
+# - repo:     optional. Repository URL to clone from.
+#             By default will clone from local bob path.
+#             Can be something like git@github.com:<user>/<repo>
+#             or anything else git can clone from.
+# - branch:   optional. Branch name to test.
+#             By default will test current checked out branch.
+# - coverage: optional. Path for code coverage report.
 
 - hosts: localhost
   connection: local
@@ -27,6 +28,13 @@
     # Default branch name to test.
     # Can be specified by "branch" command line variable.
     branch: ""
+    # Key for "git clone", will be defined if custom branch is set.
+    branch_key: ""
+
+    # Default coverage path, can be specified in command line.
+    coverage: ""
+    # --coverage-html key for phpunit, will be defined if coverage path is set in command line
+    phpunit_coverage_key: ""
 
     dev_ini_filename_local: "{{ project_path }}/application/configs/dev.ini"
     dev_ini_filename_repo: "{{ project_path }}/application/configs/_dev.ini"
@@ -74,10 +82,7 @@
 
     - name: set branch key for git clone if branch name is defined
       set_fact: branch_key=" -b {{ branch }}"
-      when: branch != ''
-    - name: set empty branch key otherwise
-      set_fact: branch_key=""
-      when: branch == ''
+      when: branch != ""
 
     # cloning repository
     - name: clone current commit into test dir
@@ -137,8 +142,12 @@
       register: result_migrations
 
     # run tests
+
+    - name: set coverage key if coverage path is defined
+      set_fact: phpunit_coverage_key=" --coverage-html {{ coverage }}"
+      when: coverage != ""
     - name: run phpunit
-      shell: chdir={{ test_dir.stdout }}/tests/unit    php phpunit.php -c phpunit-jenkins.xml >> {{ test_dir.stdout }}/data/phpunit.txt 2>&1
+      shell: chdir={{ test_dir.stdout }}/tests/unit    php phpunit.php -c phpunit-jenkins.xml {{ phpunit_coverage_key }} >> {{ test_dir.stdout }}/data/phpunit.txt 2>&1
       register: result_phpunit
       ignore_errors: true
 
