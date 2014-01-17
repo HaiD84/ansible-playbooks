@@ -173,4 +173,4 @@
       command: rm -rf {{ test_dir.stdout }}
     # mysql_db module removes all user privileges on db removal, so drop temp db that way
     - name: remove temp db
-      shell: echo 'drop database `{{ test_dir.stdout | basename }}`;' | mysql -h{{ test_db_host }} -u{{ test_db_user }} -p{{ test_db_password}}
+      shell: echo 'drop database `{{ test_dir.stdout | basename }}`;' | mysql -h{{ test_db_host }}
