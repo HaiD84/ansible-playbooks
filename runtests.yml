@@ -1,17 +1,18 @@
 # Run playbook like this:
-#   ansible-playbook runtests.yml --extra-vars "path=/path/to/project[ repo=<repository url>][ branch=<name>][ coverage=<path>]"
+#   ansible-playbook runtests.yml --extra-vars "path=/path/to/project[ repo=<repository url>][ branch=<name>][ coverage=<path>][ phpunit_debug=true]"
 #
 # Variables:
-# - path:     required. Path to local configured project checkout.
-#             Will be used to grep some variables from configs
-#             and clone current branch to test if it is not specified.
-# - repo:     optional. Repository URL to clone from.
-#             By default will clone from local bob path.
-#             Can be something like git@github.com:<user>/<repo>
-#             or anything else git can clone from.
-# - branch:   optional. Branch name to test.
-#             By default will test current checked out branch.
-# - coverage: optional. Path for code coverage report.
+# - path:          required. Path to local configured project checkout.
+#                  Will be used to grep some variables from configs
+#                  and clone current branch to test if it is not specified.
+# - repo:          optional. Repository URL to clone from.
+#                  By default will clone from local bob path.
+#                  Can be something like git@github.com:<user>/<repo>
+#                  or anything else git can clone from.
+# - branch:        optional. Branch name to test.
+#                  By default will test current checked out branch.
+# - coverage:      optional. Path for code coverage report.
+# - phpunit_debug: optional. Turn on --debug key for phpunit.
 
 - hosts: localhost
   connection: local
@@ -35,6 +36,10 @@
     coverage: ""
     # --coverage-html key for phpunit, will be defined if coverage path is set in command line
     phpunit_coverage_key: ""
+    # Default phpunit_debug flag, can be specified in command line.
+    phpunit_debug: ""
+    # --debug key for phpunit, will be defined if phpunit_debug flag is set in command line
+    phpunit_debug_key: ""
 
     dev_ini_filename_local: "{{ project_path }}/application/configs/dev.ini"
     dev_ini_filename_repo: "{{ project_path }}/application/configs/_dev.ini"
@@ -146,8 +151,11 @@
     - name: set coverage key if coverage path is defined
       set_fact: phpunit_coverage_key=" --coverage-html {{ coverage }}"
       when: coverage != ""
+    - name: set debug key if phpunit_debug flag is defined
+      set_fact: phpunit_debug_key=" --debug"
+      when: phpunit_debug != ""
     - name: run phpunit
-      shell: chdir={{ test_dir.stdout }}/tests/unit    php phpunit.php -c phpunit-jenkins.xml {{ phpunit_coverage_key }} >> {{ test_dir.stdout }}/data/phpunit.txt 2>&1
+      shell: chdir={{ test_dir.stdout }}/tests/unit    php phpunit.php -c phpunit-jenkins.xml {{ phpunit_coverage_key }}{{ phpunit_debug_key }} >> {{ test_dir.stdout }}/data/phpunit.txt 2>&1
       register: result_phpunit
       ignore_errors: true
 
