@@ -144,6 +144,7 @@
 
     - name: run migrations
       shell: chdir={{ test_dir.stdout }}/cli/migrationtool/    php migrate.php latest --env=unittest >> {{ test_dir.stdout }}/data/migrations.txt
+      ignore_errors: true
       register: result_migrations
 
     # run tests
@@ -159,6 +160,20 @@
       register: result_phpunit
       ignore_errors: true
 
+
+    # build email text
+    - name: populate mail body (migrations overall result)
+      shell: '( ( grep -sq SQLSTATE {{ test_dir.stdout }}/data/migrations.txt \
+             ) && echo "Migrations: Failed" || echo "Migrations: OK" ) >> {{ test_dir.stdout }}/data/report.txt'
+    - name: populate mail body (phpunit overall result)
+      shell: '( ( ! grep -sq "^Tests:" {{ test_dir.stdout }}/data/phpunit.txt \
+               || grep -sq FAILURE {{ test_dir.stdout }}/data/phpunit.txt \
+             ) && echo "PHPUnit: Failed" || echo "PHPUnit: OK" ) >> {{ test_dir.stdout }}/data/report.txt'
+    - name: populate mail body (migrations full result)
+      shell: ( echo "\n\n===== Migrations =====\n" && cat {{ test_dir.stdout }}/data/migrations.txt ) >> {{ test_dir.stdout }}/data/report.txt
+    - name: populate mail body (phpunit full result)
+      shell: ( echo "\n\n===== PHPUnit =====\n" && cat {{ test_dir.stdout }}/data/phpunit.txt ) >> {{ test_dir.stdout }}/data/report.txt
+
     # grep silently return exit code 0 if found something.
     # get "Failed" string if any grep in () return 0.
     - name: get overall test results
@@ -169,12 +184,16 @@
       register: result_overall
 
     # send results
-    - name: mail results
-      mail: to={{ email }}
-            from={{ email }}
-            subject="[Ansible] Tests {{ result_overall.stdout }} - {{ commit_hash.stdout }} {{ branch_name.stdout }}"
-            charset=utf8
-            attach="{{ test_dir.stdout }}/data/migrations.txt {{ test_dir.stdout }}/data/phpunit.txt"
+    # (that way it seems impossible to send multiline email body
+    #- name: mail results
+      #mail: to={{ email }}
+            #from={{ email }}
+            #subject="[Ansible] Tests {{ result_overall.stdout }} - {{ commit_hash.stdout }} {{ branch_name.stdout }}"
+            #charset=utf8
+            #attach="{{ test_dir.stdout }}/data/report.txt {{ test_dir.stdout }}/data/migrations.txt {{ test_dir.stdout }}/data/phpunit.txt"
+
+    - name: send mail
+      shell: mail -s "[Ansible] Tests {{ result_overall.stdout }} - {{ commit_hash.stdout }} {{ branch_name.stdout }}" {{ email }} < {{ test_dir.stdout }}/data/report.txt
 
     # cleanup
     - name: cleanup temp dir
