@@ -93,6 +93,11 @@
     - name: clone current commit into test dir
       command: git clone --recursive {{ branch_key }} {{ repo }} {{ test_dir.stdout }}
 
+    - name: install dependencies with ./composer.phar
+      shell: chdir={{ test_dir.stdout }}    [ -f composer.phar ] && php composer.phar install || exit 0
+    - name: install dependencies with system composer.phar if only composer.json is available
+      shell: chdir={{ test_dir.stdout }}    [ -f composer.json ] && [ ! -f composer.phar ] && composer.phar install || exit 0
+
     # get git branch name
     - name: get git branch name
       shell: chdir={{ test_dir.stdout }}    git describe --all --exact-match 2>/dev/null | sed -nr 's/^(remotes\/|heads\/)?(.*)/\2/p'
