@@ -78,11 +78,8 @@
 
   tasks:
 
-    - name: get current commit hash
-      shell: chdir={{ project_path }}    git show --abbrev-commit --format=%h| head -n1
-      register: commit_hash
     - name: create temporary directory
-      command: mktemp -d {{ tmp_path }}/runtests-{{ commit_hash.stdout }}-XXX
+      command: mktemp -d {{ tmp_path }}/runtests-XXX
       register: test_dir
 
     - name: set branch key for git clone if branch name is defined
@@ -92,6 +89,10 @@
     # cloning repository
     - name: clone current commit into test dir
       command: git clone --recursive {{ branch_key }} {{ repo }} {{ test_dir.stdout }}
+
+    - name: get current commit hash
+      shell: chdir={{ test_dir.stdout }}    git show --abbrev-commit --format=%h| head -n1
+      register: commit_hash
 
     - name: install dependencies with ./composer.phar
       shell: chdir={{ test_dir.stdout }}    [ -f composer.phar ] && php composer.phar install || exit 0
@@ -167,6 +168,8 @@
 
 
     # build email text
+    - name: populate mail body (branch name)
+      shell: 'echo "Branch: {{ commit_hash.stdout }} {{ branch_name.stdout }}\n" >> {{ test_dir.stdout }}/data/report.txt'
     - name: populate mail body (migrations overall result)
       shell: '( ( grep -sq SQLSTATE {{ test_dir.stdout }}/data/migrations.txt \
              ) && echo "Migrations: Failed" || echo "Migrations: OK" ) >> {{ test_dir.stdout }}/data/report.txt'
