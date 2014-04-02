@@ -54,7 +54,7 @@
     # Too bad ansible can't read .ini files :(.
 
     # email to send report to:
-    email: "{{ lookup('pipe', 'cat \"' + dev_ini_filename_local + '\" | grep \"^log.email\\s*=\" | sed -r \"s/^[a-zA-Z0-9.-]*\\s*=\\s*[\\'\\\\\"]?//\" | sed -r \"s/[\\'\\\\\"]?$//\" ') }}"
+    email: "{{ lookup('pipe', 'cat \"' + dev_ini_filename_local + '\" | grep \"^log.mail.email\\s*=\" | sed -r \"s/^[a-zA-Z0-9.-]*\\s*=\\s*[\\'\\\\\"]?//\" | sed -r \"s/[\\'\\\\\"]?$//\" ') }}"
 
     # Developer's db settings, temporary db will be created here.
     # Connection to this db is actually made using user/password stored in .my.cnf file
