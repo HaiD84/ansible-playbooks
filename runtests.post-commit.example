@@ -5,6 +5,11 @@
 # Put this file to .git/hooks/post-commit in your repository
 # and change next path to path to your clone of ansible-playbooks repo.
 
+# Skip hook if rebasing branch
+if [ -d .git/rebase-merge ]; then
+    exit 0
+fi
+
 ANSIBLE_PLAYBOOKS=~/projects/ansible-playbooks
 
 ansible-playbook $ANSIBLE_PLAYBOOKS/runtests.yml --extra-vars "path=`pwd`" >/dev/null 2>&1 &
