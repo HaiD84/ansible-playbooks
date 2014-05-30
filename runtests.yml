@@ -123,13 +123,7 @@
       shell: rm -f {{ tmp_path }}/runtests-{{ etalon_db_name }}-dump-*.sql
     - name: dump etalon db if there is no today's dump
       when: has_etalon_dump.stdout == ''
-      mysql_db: login_host={{ etalon_db_host }}
-                login_user={{ etalon_db_user }}
-                login_password={{ etalon_db_password }}
-                name={{ etalon_db_name }}
-                encoding=utf-8
-                state=dump
-                target={{ etalon_dayly_dump_file }}
+      shell: mysqldump -h{{ etalon_db_host }} -u{{ etalon_db_user }} -p{{ etalon_db_password}} {{ etalon_db_name }} | sed -r 's#/\*![0-9]+\sDEFINER[^*]+\*/##' > {{ etalon_dayly_dump_file }}
     - name: create temporary db for tests
       mysql_db: login_host={{ test_db_host }}
                 name={{ test_dir.stdout | basename }}
