@@ -136,11 +136,7 @@
                 state=import
                 target={{ etalon_dayly_dump_file }}
     - name: grant privileges to test db
-      mysql_user: login_host={{ test_db_host }}
-                  host={{ test_db_host }}
-                  name={{ test_db_user }}
-                  priv={{ test_dir.stdout | basename }}.*:ALL
-                  state=present
+      shell: echo 'grant all privileges on `{{ test_dir.stdout | basename }}`.* to '{{ test_db_user }}'@'{{ test_db_host }}';' | mysql -h{{ test_db_host }}
 
     - name: run migrations
       shell: chdir={{ test_dir.stdout }}/cli/migrationtool/    php migrate.php latest --env=unittest >> {{ test_dir.stdout }}/data/migrations.txt
@@ -201,5 +197,7 @@
     - name: cleanup temp dir
       command: rm -rf {{ test_dir.stdout }}
     # mysql_db module removes all user privileges on db removal, so drop temp db that way
+    - name: revoke privileges to test db
+      shell: echo 'revoke all privileges on `{{ test_dir.stdout | basename }}`.* from '{{ test_db_user }}'@'{{ test_db_host }}';' | mysql -h{{ test_db_host }}
     - name: remove temp db
       shell: echo 'drop database `{{ test_dir.stdout | basename }}`;' | mysql -h{{ test_db_host }}
