@@ -42,7 +42,7 @@
     phpunit_debug_key: ""
 
     dev_ini_filename_local: "{{ project_path }}/application/configs/dev.ini"
-    dev_ini_filename_repo: "{{ project_path }}/application/configs/_dev.ini"
+    app_ini_filename_repo: "{{ project_path }}/application/configs/application.ini"
 
     # Grep variables from .ini file, drop variable name and single/double quotes from value
     # and store result in ansible variable.
@@ -68,10 +68,10 @@
 
     # Etalon test database.
     # We will dump it and run tests on our temporary db.
-    etalon_db_host: "{{ lookup('pipe', 'cat \"' + dev_ini_filename_repo + '\" | grep \"^resources.multidb.maintest.host\\s*=\" | sed -r \"s/^[a-zA-Z0-9.-]*\\s*=\\s*[\\'\\\\\"]?//\" | sed -r \"s/[\\'\\\\\"]?$//\" ') }}"
-    etalon_db_user: "{{ lookup('pipe', 'cat \"' + dev_ini_filename_repo + '\" | grep \"^resources.multidb.maintest.username\\s*=\" | sed -r \"s/^[a-zA-Z0-9.-]*\\s*=\\s*[\\'\\\\\"]?//\" | sed -r \"s/[\\'\\\\\"]?$//\" ') }}"
-    etalon_db_password: "{{ lookup('pipe', 'cat \"' + dev_ini_filename_repo + '\" | grep \"^resources.multidb.maintest.password\\s*=\" | sed -r \"s/^[a-zA-Z0-9.-]*\\s*=\\s*[\\'\\\\\"]?//\" | sed -r \"s/[\\'\\\\\"]?$//\" ') }}"
-    etalon_db_name: "{{ lookup('pipe', 'cat \"' + dev_ini_filename_repo + '\" | grep \"^resources.multidb.maintest.dbname\\s*=\" | sed -r \"s/^[a-zA-Z0-9.-]*\\s*=\\s*[\\'\\\\\"]?//\" | sed -r \"s/[\\'\\\\\"]?$//\" ') }}"
+    etalon_db_host: "{{ lookup('pipe', 'cat \"' + app_ini_filename_repo + '\" | grep \"^resources.multidb.maintest.host\\s*=\" | head -n1 | sed -r \"s/^[a-zA-Z0-9.-]*\\s*=\\s*[\\'\\\\\"]?//\" | sed -r \"s/[\\'\\\\\"]?$//\" ') }}"
+    etalon_db_user: "{{ lookup('pipe', 'cat \"' + app_ini_filename_repo + '\" | grep \"^resources.multidb.maintest.username\\s*=\" | head -n1 | sed -r \"s/^[a-zA-Z0-9.-]*\\s*=\\s*[\\'\\\\\"]?//\" | sed -r \"s/[\\'\\\\\"]?$//\" ') }}"
+    etalon_db_password: "{{ lookup('pipe', 'cat \"' + app_ini_filename_repo + '\" | grep \"^resources.multidb.maintest.password\\s*=\" | head -n1 | sed -r \"s/^[a-zA-Z0-9.-]*\\s*=\\s*[\\'\\\\\"]?//\" | sed -r \"s/[\\'\\\\\"]?$//\" ') }}"
+    etalon_db_name: "{{ lookup('pipe', 'cat \"' + app_ini_filename_repo + '\" | grep \"^resources.multidb.maintest.dbname\\s*=\" | head -n1 | sed -r \"s/^[a-zA-Z0-9.-]*\\s*=\\s*[\\'\\\\\"]?//\" | sed -r \"s/[\\'\\\\\"]?$//\" ') }}"
     # Store etalon dump here, we will cache it for a day.
     etalon_dayly_dump_file: "{{ tmp_path }}/runtests-{{ etalon_db_name }}-dump-{{ ansible_date_time.date }}.sql"
 
@@ -123,7 +123,7 @@
       shell: rm -f {{ tmp_path }}/runtests-{{ etalon_db_name }}-dump-*.sql
     - name: dump etalon db if there is no today's dump
       when: has_etalon_dump.stdout == ''
-      shell: mysqldump -h{{ etalon_db_host }} -u{{ etalon_db_user }} -p{{ etalon_db_password}} {{ etalon_db_name }} | sed -r 's#/\*![0-9]+\sDEFINER[^*]+\*/##' > {{ etalon_dayly_dump_file }}
+      shell: mysqldump -h{{ etalon_db_host }} -u{{ etalon_db_user }} --password={{ etalon_db_password }} {{ etalon_db_name }} | sed -r 's#/\*![0-9]+\sDEFINER[^*]+\*/##' > {{ etalon_dayly_dump_file }}
     - name: create temporary db for tests
       mysql_db: login_host={{ test_db_host }}
                 name={{ test_dir.stdout | basename }}
