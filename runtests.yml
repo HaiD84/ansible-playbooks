@@ -79,7 +79,7 @@
   tasks:
 
     - name: create temporary directory
-      command: mktemp -d {{ tmp_path }}/runtests-XXX
+      command: mktemp -d {{ tmp_path }}/runtests_XXX
       register: test_dir
 
     - name: set branch key for git clone if branch name is defined
